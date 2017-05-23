@@ -1,7 +1,7 @@
 import requests
 import json
 import enum
-# from tinydb import TinyDB
+from tinydb import TinyDB
 
 
 class Grades(enum.Enum):
@@ -64,9 +64,7 @@ def store_node(db, node):
 
             _, category, info_type = key.split("-")
             category = Grades(category).name
-            if category not in record:
-                record[category] = {}
-            record[category][info_type] = node[key]
+            record["-".join(category, info_type)] = node[key]
 
     db.insert(record)
 
@@ -79,7 +77,7 @@ def store_nodes(db, nodes):
 
 def run():
 
-    db = None
+    db = TinyDB('ldjam38.json')
     list_size = 30
     offset = 0
     chunk_size = 10
