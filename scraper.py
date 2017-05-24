@@ -1,7 +1,9 @@
+#!/usr/bin/env python3
 import requests
 import json
 import enum
 from tinydb import TinyDB
+import time
 
 
 class Grades(enum.Enum):
@@ -54,17 +56,17 @@ def store_node(db, node):
 
     record = {'id': node['id'], 'authors': [node['author']]}
 
-    for key in node['magic']:
+    for key, value in node['magic'].items():
 
         if key == 'given':
-            record['given'] = node[key]
+            record['given'] = value
         elif key == 'grade':
-            record['received'] = node[key]
+            record['received'] = value
         elif key.startswith('grade-'):
 
             _, category, info_type = key.split("-")
             category = Grades(category).name
-            record["-".join(category, info_type)] = node[key]
+            record["-".join((category, info_type))] = value
 
     db.insert(record)
 
@@ -75,19 +77,35 @@ def store_nodes(db, nodes):
         store_node(db, node)
 
 
-def run():
+def run(sort_by=Grades.Overall, entry_type=EntryType.Jam, offset=0):
 
     db = TinyDB('ldjam38.json')
     list_size = 30
-    offset = 0
     chunk_size = 10
 
-    node_list = get_node_list(Grades.Overall, EntryType.Jam, offset=offset, limit=list_size)
-    node_ids = get_identifiers_from_node_list(node_list)
-    node_count = len(node_ids)
-    while node_ids:
-        nodes = get_node_data(node_ids[:chunk_size])
-        store_node(db, nodes)
-        node_ids = node_ids[chunk_size:]
+    processed = 0
+    previous_ids = []
 
-    offset += node_count
+    while True:
+        node_list = get_node_list(
+            sort_by, entry_type, offset=offset, limit=list_size)
+        node_ids = get_identifiers_from_node_list(node_list)
+        node_count = len(node_ids)
+
+        if node_count == 0 or set(previous_ids) == set(node_ids):
+            break
+
+        previous_ids = [nid for nid in node_ids]
+        while node_ids:
+            chunk = node_ids[:chunk_size]
+            nodes = get_node_data(chunk)
+            store_nodes(db, nodes)
+            node_ids = node_ids[chunk_size:]
+            processed += len(chunk)
+            print("Processed : {0}".format(processed))
+
+        offset += node_count
+        print("Sleep 1 second")
+        time.sleep(1)
+
+    print("Completed: {0}".format(processed))
